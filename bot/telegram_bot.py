@@ -1,4 +1,5 @@
 import telegram
+import requests
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
 async def send_telegram_alert(token_address:str, volume:str, market_cap:str):
@@ -12,18 +13,12 @@ async def send_telegram_alert(token_address:str, volume:str, market_cap:str):
     )
     await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
 
-import requests
-import os
-
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-
 
 async def send_telegram_alert(message):
     """
     Send a notification to Telegram.
     """
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,

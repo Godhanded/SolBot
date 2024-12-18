@@ -39,19 +39,19 @@ async def monitor_tokens():
                     # Update market cap/volume for tokens
                     if mint not in tracked_tokens:
                         tracked_tokens[mint] = {
-                            "volume": Decimal(0),
-                            "market_cap": Decimal(0)
+                            "volume": str(Decimal(0)),
+                            "market_cap": str(Decimal(0))
                         }
 
-                    tracked_tokens[mint]["volume"] += token_data["volume"]
-                    tracked_tokens[mint]["market_cap"] = calculate_market_cap(
+                    tracked_tokens[mint]["volume"] = str(Decimal(tracked_tokens[mint]["volume"])+ Decimal(token_data["volume"]))
+                    tracked_tokens[mint]["market_cap"] = str(calculate_market_cap(
                         token_data
-                    )
+                    ))
 
                     # Check if thresholds are exceeded
                     if (
-                        tracked_tokens[mint]["volume"] >= THRESHOLD_VOLUME
-                        and tracked_tokens[mint]["market_cap"]
+                        Decimal(tracked_tokens[mint]["volume"]) >= THRESHOLD_VOLUME
+                        and Decimal(tracked_tokens[mint]["market_cap"])
                         >= THRESHOLD_MARKET_CAP
                     ):
                         save_token_data(tracked_tokens)  # Save updated stats

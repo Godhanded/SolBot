@@ -11,10 +11,10 @@ async def run_bot():
     async for token, stats in monitor_tokens():
         # If thresholds are exceeded, send Telegram notification
         alert_message = (
-            f"🚨 *Token Alert*\n"
+            f"🚨 *Token Alert!*\n\n"
             f"🪙 Token: {token['mint']}\n"
-            f"🔹 Volume: {stats['volume']}\n"
-            f"🔹 Market Cap: {stats['market_cap']}\n"
+            f"💸 Volume: {stats['volume']} Sol\n"
+            f"💰 Market Cap: ${stats['market_cap']}\n"
         )
         await send_telegram_alert(alert_message)
 
