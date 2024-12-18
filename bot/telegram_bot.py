@@ -11,3 +11,25 @@ async def send_telegram_alert(token_address:str, volume:str, market_cap:str):
         f"💰 Market Cap: ${market_cap:,}"
     )
     await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+
+import requests
+import os
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+
+async def send_telegram_alert(message):
+    """
+    Send a notification to Telegram.
+    """
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "Markdown",
+    }
+    response = requests.post(url, json=payload)
+
+    if response.status_code != 200:
+        print(f"Failed to send Telegram message: {response.content}")

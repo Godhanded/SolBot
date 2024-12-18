@@ -1,47 +1,117 @@
-from solana.rpc.async_api import AsyncClient
-from solana.rpc.types import MemcmpOpts
-from datetime import datetime
-from storage import load_tracked_tokens, save_tracked_tokens
+from time import sleep
+import requests
+import asyncio
+from decimal import Decimal
+from storage import save_token_data, load_token_data
 
-async def get_block_height_for_date(client:AsyncClient, date_str:str):
-    """Fetch block height for a specific date using Solana's RPC."""
-    timestamp = int(datetime.strptime(date_str, "%Y-%m-%d").timestamp())
-    response = await client.get_block_time(timestamp)
-    if response["result"]:
-        return response["result"]
+SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com"
+TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+
+THRESHOLD_VOLUME = Decimal(100_000)  # Example threshold for volume
+THRESHOLD_MARKET_CAP = Decimal(500_000)  # Example threshold for market cap
+
+
+async def monitor_tokens():
+    """
+    Continuously monitor tokens for market cap and volume thresholds.
+    Yields token data for alerts.
+    """
+    tracked_tokens = load_token_data()
+
+    while True:
+        # Fetch recent signatures for SPL Token Program
+        signatures = get_recent_signatures()
+        print({"sigs":signatures})
+
+        for signature in signatures:
+            await asyncio.sleep(10)
+            transaction = get_transaction(signature)
+            print({"tra":transaction},"\n")
+
+            if transaction:
+                token_data = parse_new_token(transaction)
+                print({"dat":token_data},"\n")
+
+                if token_data:
+                    mint = token_data['mint']
+
+                    # Update market cap/volume for tokens
+                    if mint not in tracked_tokens:
+                        tracked_tokens[mint] = {
+                            "volume": Decimal(0),
+                            "market_cap": Decimal(0)
+                        }
+
+                    tracked_tokens[mint]["volume"] += token_data["volume"]
+                    tracked_tokens[mint]["market_cap"] = calculate_market_cap(
+                        token_data
+                    )
+
+                    # Check if thresholds are exceeded
+                    if (
+                        tracked_tokens[mint]["volume"] >= THRESHOLD_VOLUME
+                        and tracked_tokens[mint]["market_cap"]
+                        >= THRESHOLD_MARKET_CAP
+                    ):
+                        save_token_data(tracked_tokens)  # Save updated stats
+                        yield token_data, tracked_tokens[mint]
+
+        await asyncio.sleep(60)  # Delay between fetches
+
+
+def get_recent_signatures(limit=50):
+    """
+    Fetch recent transaction signatures for SPL Token Program.
+    """
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "getSignaturesForAddress",
+        "params": [TOKEN_PROGRAM_ID, {"limit": limit}],
+    }
+    response = requests.post(SOLANA_RPC_URL, json=payload)
+    return [sig["signature"] for sig in response.json().get("result", [])]
+
+
+def get_transaction(signature):
+    """
+    Fetch a transaction by its signature.
+    """
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "getTransaction",
+        "params": [signature, {"encoding": "jsonParsed","maxSupportedTransactionVersion": 0}],
+    }
+    response = requests.post(SOLANA_RPC_URL, json=payload)
+    return response.json().get("result")
+
+
+def parse_new_token(transaction):
+    """
+    Parse a transaction to detect new token mints and track volume.
+    """
+    try:
+        for instruction in transaction["transaction"]["message"]["instructions"]:
+            program_id = instruction["programId"]
+            print(program_id,"\n")
+
+            if program_id == TOKEN_PROGRAM_ID:
+                if "mint" in instruction["parsed"]["info"]:
+                    return {
+                        "mint": instruction["parsed"]["info"]["mint"],
+                        "volume": Decimal(instruction["parsed"]["info"].get("amount", 0)),
+                    }
+    except KeyError:
+        return None
     return None
 
-async def detect_new_tokens():
-    """Detect new tokens created after the START_DATE."""
-    from config import SOLANA_RPC_URL, START_DATE
-    tracked_tokens = load_tracked_tokens()
 
-    async with AsyncClient(SOLANA_RPC_URL) as client:
-        # Get block height for the start date
-        start_block_height = await get_block_height_for_date(client, START_DATE)
-        if not start_block_height:
-            print(f"Failed to fetch block height for start date: {START_DATE}")
-            return []
-
-        # Query the token program for new tokens
-        filters = [MemcmpOpts(offset=0, bytes="mint")]
-
-        response = await client.get_program_accounts(
-            "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",  filters=filters, encoding="jsonParsed"
-        )
-
-        new_tokens = []
-        for account in response["result"]:
-            pubkey = account["pubkey"]
-
-            # Fetch the slot (block height) for the account's creation date
-            transaction_history = await client.get_signatures_for_address(pubkey, limit=1)
-            if transaction_history["result"] and int(transaction_history["result"][0]["slot"]) >= start_block_height:
-                if pubkey not in tracked_tokens:
-                    tracked_tokens[pubkey] = {"volume": 0, "last_reset": datetime.utcnow().timestamp()}
-                    new_tokens.append(pubkey)
-
-        if new_tokens:
-            save_tracked_tokens(tracked_tokens)
-
-        return new_tokens
+def calculate_market_cap(token_data):
+    """
+    Mock market cap calculation based on circulating supply and token price.
+    Replace this with actual token data from price oracles (if needed).
+    """
+    circulating_supply = Decimal(10_000_000)  # Replace with actual supply
+    price_per_token = Decimal(0.05)  # Replace with actual price
+    return circulating_supply * price_per_token

@@ -1,16 +1,16 @@
 import json
-import os
+from pathlib import Path
 
-STORAGE_FILE = "tracked_tokens.json"
+DATA_FILE = Path("tracked_tokens.json")
 
-def load_tracked_tokens():
-    """Load tracked tokens from a JSON file."""
-    if os.path.exists(STORAGE_FILE):
-        with open(STORAGE_FILE, "r") as f:
+
+def save_token_data(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f)
+
+
+def load_token_data():
+    if DATA_FILE.exists():
+        with open(DATA_FILE, "r") as f:
             return json.load(f)
     return {}
-
-def save_tracked_tokens(tracked_tokens:dict):
-    """Save tracked tokens to a JSON file."""
-    with open(STORAGE_FILE, "w") as f:
-        json.dump(tracked_tokens, f, indent=4)
