@@ -2,3 +2,4 @@ solana
 python-telegram-bot
 requests
 solders
+python-dotenv

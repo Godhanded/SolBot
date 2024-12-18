@@ -3,12 +3,13 @@ import requests
 import asyncio
 from decimal import Decimal
 from storage import save_token_data, load_token_data
+from config import SOLANA_RPC_URL
 
-SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com"
+# SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com"
 TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 
-THRESHOLD_VOLUME = Decimal(100_000)  # Example threshold for volume
-THRESHOLD_MARKET_CAP = Decimal(500_000)  # Example threshold for market cap
+THRESHOLD_VOLUME = Decimal(0)  # Example threshold for volume
+THRESHOLD_MARKET_CAP = Decimal(0)  # Example threshold for market cap
 
 
 async def monitor_tokens():
