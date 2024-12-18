@@ -10,7 +10,7 @@ def load_tracked_tokens():
             return json.load(f)
     return {}
 
-def save_tracked_tokens(tracked_tokens):
+def save_tracked_tokens(tracked_tokens:dict):
     """Save tracked tokens to a JSON file."""
     with open(STORAGE_FILE, "w") as f:
         json.dump(tracked_tokens, f, indent=4)

@@ -1,5 +1,7 @@
 import os
-SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com"
+SOLANA_RPC_URL = os.getenv("SOLANA_RPC_URL")
+# SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com"
+
 
 START_DATE = "2024-12-15"  # Date to start detecting tokens from
 RESET_INTERVAL_DAYS = 2    # Time interval to reset volumes and market caps

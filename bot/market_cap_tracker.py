@@ -1,7 +1,7 @@
 from solana.rpc.async_api import AsyncClient
 from solders.pubkey import Pubkey
 
-async def get_token_supply(client, token_address):
+async def get_token_supply(client:AsyncClient, token_address:str):
     """Fetch the token's supply from the Solana blockchain."""
     try:
         response = await client.get_token_supply(Pubkey.from_string(token_address))
@@ -13,7 +13,7 @@ async def get_token_supply(client, token_address):
         print(f"Error fetching supply for token {token_address}: {e}")
     return 0
 
-async def get_market_price(token_address):
+async def get_market_price(token_address:str):
     """
     Fetch market price for a token. 
     Placeholder for now (use an API like Coingecko, CoinMarketCap, etc.).
@@ -21,7 +21,7 @@ async def get_market_price(token_address):
     # You could integrate a real-time price API here
     return 0.5  # Mock price in USD
 
-async def calculate_market_cap(client, token_address):
+async def calculate_market_cap(client:AsyncClient, token_address:str):
     """Calculate the token's market cap by multiplying supply and price."""
     supply = await get_token_supply(client, token_address)
     price = await get_market_price(token_address)

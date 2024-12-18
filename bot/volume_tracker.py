@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta
+
+from httpx import AsyncClient
 from storage import load_tracked_tokens, save_tracked_tokens
 from market_cap_tracker import calculate_market_cap
 
-async def calculate_volume(client, token_address):
+async def calculate_volume(client:AsyncClient, token_address:str):
     """Calculate volume by summing transactions for the token."""
     try:
         from solders.pubkey import Pubkey
@@ -22,7 +24,7 @@ async def calculate_volume(client, token_address):
         print(f"Error calculating volume for {token_address}: {e}")
         return 0
 
-def reset_data(tracked_tokens):
+def reset_data(tracked_tokens:dict):
     """Reset volumes and market caps after RESET_INTERVAL_DAYS."""
     from bot.config import RESET_INTERVAL_DAYS
     current_time = datetime.utcnow()

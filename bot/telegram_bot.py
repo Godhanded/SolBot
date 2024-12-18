@@ -1,7 +1,7 @@
 import telegram
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
-async def send_telegram_alert(token_address, volume, market_cap):
+async def send_telegram_alert(token_address:str, volume:str, market_cap:str):
     """Send an alert when volume and market cap exceed the thresholds."""
     bot = telegram.Bot(token=TELEGRAM_BOT_TOKEN)
     message = (

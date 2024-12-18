@@ -3,7 +3,7 @@ from solana.rpc.types import MemcmpOpts
 from datetime import datetime
 from storage import load_tracked_tokens, save_tracked_tokens
 
-async def get_block_height_for_date(client, date_str):
+async def get_block_height_for_date(client:AsyncClient, date_str:str):
     """Fetch block height for a specific date using Solana's RPC."""
     timestamp = int(datetime.strptime(date_str, "%Y-%m-%d").timestamp())
     response = await client.get_block_time(timestamp)
