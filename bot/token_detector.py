@@ -142,7 +142,8 @@ def calculate_market_cap(token_data):
     response = requests.get(
         f"https://api.mainnet-beta.solana.com/token/{token_data['mint']}"
     )
-    circulating_supply = Decimal(response.json()["supply"])
+    pprint.pprint(response.json(),"\n")
+    circulating_supply = Decimal(response.json()["result"].get("supply"))
     print(circulating_supply,"\n")
 
     # Fetch token price from a price oracle
