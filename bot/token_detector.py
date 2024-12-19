@@ -1,3 +1,4 @@
+import pprint
 from time import sleep
 import requests
 import asyncio
@@ -22,12 +23,11 @@ async def monitor_tokens():
     while True:
         # Fetch recent signatures for SPL Token Program
         signatures = get_recent_signatures()
-        print({"sigs":signatures})
+        # print({"sigs":signatures})
 
         for signature in signatures:
-            await asyncio.sleep(10)
+            await asyncio.sleep(6)
             transaction = get_transaction(signature)
-            print({"tra":transaction},"\n")
 
             if transaction:
                 token_data = parse_new_token(transaction)
@@ -39,8 +39,10 @@ async def monitor_tokens():
                     # Update market cap/volume for tokens
                     if mint not in tracked_tokens:
                         tracked_tokens[mint] = {
-                            "volume": str(Decimal(0)),
-                            "market_cap": str(Decimal(0))
+                            "mint": token_data["mint"],
+                            "account": token_data["account"],
+                            "source": token_data["source"],
+                            "volume": Decimal(0),
                         }
 
                     tracked_tokens[mint]["volume"] = str(Decimal(tracked_tokens[mint]["volume"])+ Decimal(token_data["volume"]))
@@ -57,10 +59,9 @@ async def monitor_tokens():
                         save_token_data(tracked_tokens)  # Save updated stats
                         yield token_data, tracked_tokens[mint]
 
-        await asyncio.sleep(60)  # Delay between fetches
+        await asyncio.sleep(30)  # Delay between fetches
 
-
-def get_recent_signatures(limit=50):
+def get_recent_signatures_from_after_current_date(date):
     """
     Fetch recent transaction signatures for SPL Token Program.
     """
@@ -68,15 +69,40 @@ def get_recent_signatures(limit=50):
         "jsonrpc": "2.0",
         "id": 1,
         "method": "getSignaturesForAddress",
-        "params": [TOKEN_PROGRAM_ID, {"limit": limit}],
+        "params": [TOKEN_PROGRAM_ID, {"limit": 50, "before": date}],
     }
     response = requests.post(SOLANA_RPC_URL, json=payload)
+    print(response.json().get("result", []),"\n")
     return [sig["signature"] for sig in response.json().get("result", [])]
 
-
-def get_transaction(signature):
+def get_recent_signatures(limit=50):
     """
-    Fetch a transaction by its signature.
+    Fetch recent transaction signatures for SPL Token Program starting from the last checked block height.
+    """
+    last_checked_block = load_token_data().get("last_checked_block", None)
+    params = [TOKEN_PROGRAM_ID, {"limit": limit}]
+    if last_checked_block:
+        params[1]["before"] = last_checked_block
+
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "getSignaturesForAddress",
+        "params": params,
+    }
+    response = requests.post(SOLANA_RPC_URL, json=payload)
+    signatures = response.json().get("result", [])
+    
+    if signatures:
+        last_checked_block = signatures[-1]["slot"]
+        save_token_data({"last_checked_block": last_checked_block})
+
+    return [sig["signature"] for sig in signatures]
+
+
+def get_transaction(signature, retries=5):
+    """
+    Fetch a transaction by its signature with retry logic.
     """
     payload = {
         "jsonrpc": "2.0",
@@ -84,8 +110,18 @@ def get_transaction(signature):
         "method": "getTransaction",
         "params": [signature, {"encoding": "jsonParsed","maxSupportedTransactionVersion": 0}],
     }
-    response = requests.post(SOLANA_RPC_URL, json=payload)
-    return response.json().get("result")
+    for attempt in range(retries):
+        response = requests.post(SOLANA_RPC_URL, json=payload)
+        if response.status_code == 200:
+            result = response.json().get("result")
+            if result:
+                pprint.pprint(result)
+                return result
+        else:
+            print(f"Attempt {attempt + 1} failed: {response.json().get('error')}")
+            sleep(2 ** attempt)  # Exponential backoff
+    return None
+
 
 
 def parse_new_token(transaction):
@@ -101,18 +137,39 @@ def parse_new_token(transaction):
                 if "mint" in instruction["parsed"]["info"]:
                     return {
                         "mint": instruction["parsed"]["info"]["mint"],
-                        "volume": Decimal(instruction["parsed"]["info"].get("amount", 0)),
+                        "account": instruction["parsed"]["info"].get("destination"),
+                        "source": instruction["parsed"]["info"]["source"],
+                        "volume": Decimal(instruction["parsed"]["info"]["tokenAmount"].get("uiAmountString"),0),
                     }
     except KeyError:
         return None
     return None
 
-
 def calculate_market_cap(token_data):
     """
-    Mock market cap calculation based on circulating supply and token price.
-    Replace this with actual token data from price oracles (if needed).
+    Calculate market cap based on circulating supply and token price.
     """
-    circulating_supply = Decimal(10_000_000)  # Replace with actual supply
-    price_per_token = Decimal(0.05)  # Replace with actual price
+    # Fetch circulating supply from Solana token metadata
+    response = requests.get(
+        f"https://api.mainnet-beta.solana.com/token/{token_data['mint']}"
+    )
+    circulating_supply = Decimal(response.json()["supply"])
+    print(circulating_supply,"\n")
+
+    # Fetch token price from a price oracle
+    response = requests.get(
+        f"https://api.mainnet-beta.solana.com/token/{token_data['mint']}/price"
+    )
+    price_per_token = Decimal(response.json()["result"].get("price"))
+    print(price_per_token,"\n")
+
     return circulating_supply * price_per_token
+
+# def calculate_market_cap(token_data):
+#     """
+#     Mock market cap calculation based on circulating supply and token price.
+#     Replace this with actual token data from price oracles (if needed).
+#     """
+#     circulating_supply = Decimal(10_000_000)  # Replace with actual supply
+#     price_per_token = Decimal(0.05)  # Replace with actual price
+#     return circulating_supply * price_per_token
