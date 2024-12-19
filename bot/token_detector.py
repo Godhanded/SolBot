@@ -23,7 +23,7 @@ async def monitor_tokens():
     while True:
         # Fetch recent signatures for SPL Token Program
         signatures = get_recent_signatures()
-        # print({"sigs":signatures})
+        print({"sigs":signatures})
 
         for signature in signatures:
             await asyncio.sleep(6)
@@ -79,25 +79,14 @@ def get_recent_signatures(limit=50):
     """
     Fetch recent transaction signatures for SPL Token Program starting from the last checked block height.
     """
-    last_checked_block = load_token_data().get("last_checked_block", None)
-    params = [TOKEN_PROGRAM_ID, {"limit": limit}]
-    if last_checked_block:
-        params[1]["before"] = last_checked_block
-
     payload = {
         "jsonrpc": "2.0",
         "id": 1,
         "method": "getSignaturesForAddress",
-        "params": params,
+        "params": [TOKEN_PROGRAM_ID, {"limit": limit}],
     }
     response = requests.post(SOLANA_RPC_URL, json=payload)
-    signatures = response.json().get("result", [])
-    
-    if signatures:
-        last_checked_block = signatures[-1]["slot"]
-        save_token_data({"last_checked_block": last_checked_block})
-
-    return [sig["signature"] for sig in signatures]
+    return [sig["signature"] for sig in response.json().get("result", [])]
 
 
 def get_transaction(signature, retries=5):
@@ -139,7 +128,7 @@ def parse_new_token(transaction):
                         "mint": instruction["parsed"]["info"]["mint"],
                         "account": instruction["parsed"]["info"].get("destination"),
                         "source": instruction["parsed"]["info"]["source"],
-                        "volume": Decimal(instruction["parsed"]["info"]["tokenAmount"].get("uiAmountString"),0),
+                        "volume": Decimal(instruction["parsed"]["info"]["tokenAmount"].get("uiAmountString")),
                     }
     except KeyError:
         return None
