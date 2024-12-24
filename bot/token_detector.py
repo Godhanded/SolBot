@@ -19,65 +19,70 @@ TOKEN_PROGRAM_ID = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"
 THRESHOLD_VOLUME = Decimal(0)  # Example threshold for volume
 THRESHOLD_MARKET_CAP = Decimal(0)  # Example threshold for market cap
 
-            
-async def run()->AsyncGenerator[tuple[Any, dict], Any]:
+
+async def run() -> AsyncGenerator[tuple[Any, dict], Any]:
     backoff = 1  # Initial backoff time in seconds
     max_backoff = 60  # Maximum backoff time in seconds
     while True:
-        async with websockets.connect(SOLANA_RPC_WSS) as websocket:
+        async with websockets.connect(
+            SOLANA_RPC_WSS, ping_timeout=None, ping_interval=None
+        ) as websocket:
             try:
-                    # Send subscription request
-                    await websocket.send(
-                        json.dumps(
-                            {
-                                "jsonrpc": "2.0",
-                                "id": 1,
-                                "method": "logsSubscribe",
-                                "params": [
-                                    {"mentions": [TOKEN_PROGRAM_ID]},
-                                    {"commitment": "confirmed"},
-                                ],
-                            }
-                        )
+                # Send subscription request
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": 1,
+                            "method": "logsSubscribe",
+                            "params": [
+                                {"mentions": [TOKEN_PROGRAM_ID]},
+                                {"commitment": "confirmed"},
+                            ],
+                        }
+                    )
+                )
+
+                first_resp = await websocket.recv()
+                print(first_resp)
+                response_dict = json.loads(first_resp)
+                if "result" in response_dict:
+                    print(
+                        "Subscription successful. Subscription ID: ",
+                        response_dict["result"],
                     )
 
-                    first_resp = await websocket.recv()
-                    print(first_resp)
-                    response_dict = json.loads(first_resp)
-                    if "result" in response_dict:
-                        print(
-                            "Subscription successful. Subscription ID: ",
-                            response_dict["result"],
+                # Continuously read from the WebSocket
+                async for response in websocket:
+                    response_dict = json.loads(response)
+                    pool_store = load_token_data()
+
+                    # if response_dict['params']['result']['value']['err'] == None:
+                    signature = response_dict["params"]["result"]["value"]["signature"]
+
+                    if signature not in pool_store:
+
+                        log_messages_set = set(
+                            response_dict["params"]["result"]["value"]["logs"]
                         )
 
-                    # Continuously read from the WebSocket
-                    async for response in websocket:
-                        response_dict = json.loads(response)
-                        pool_store = load_token_data()
+                        search = "initialize2"
+                        if any(search in message for message in log_messages_set):
+                            print(f"True, https://solscan.io/tx/{signature}")
+                            postTokenBalances, instructions = get_transaction(signature)
+                            pool = parse_new_pool(instructions)
+                            volumes = parse_amounts(postTokenBalances, pool)
 
-                        # if response_dict['params']['result']['value']['err'] == None:
-                        signature = response_dict["params"]["result"]["value"]["signature"]
+                            yield signature, pool, volumes
+                            save_token_data({signature: {**pool, **volumes}})
+                        else:
 
-                        if signature not in pool_store:
+                            pass
 
-                            log_messages_set = set(
-                                response_dict["params"]["result"]["value"]["logs"]
-                            )
-
-                            search = "initialize2"
-                            if any(search in message for message in log_messages_set):
-                                print(f"True, https://solscan.io/tx/{signature}")
-                                pool = parse_new_pool(get_transaction(signature))
-                                yield signature, pool
-                                save_token_data({signature: pool})
-                            else:
-
-                                pass
-
-                        # else:
-                        #     print("Error in response: ", response_dict['params']['result']['value']['err'])
-                        #     pass
-                        backoff = 1
+                    # else:
+                    #     print("Error in response: ", response_dict['params']['result']['value']['err'])
+                    #     pass
+                    backoff = 1
 
             except websockets.ConnectionClosed as e:
                 print(f"WebSocket connection closed: {e}")
@@ -90,7 +95,25 @@ async def run()->AsyncGenerator[tuple[Any, dict], Any]:
                 backoff = min(backoff * 2, max_backoff)  # Exponential backoff
 
 
-def get_transaction(signature: str, retries: int = 5) -> dict:
+def parse_amounts(postTokenBalances: list[dict], pool: dict):
+    """
+    Get the amounts of tokens in a pool.
+    """
+    return {
+        "Token0Volume": [
+            balance["uiTokenAmount"]["uiAmount"]
+            for balance in postTokenBalances
+            if balance["mint"] == pool["Token0"]
+        ][0],
+        "Token1Volume": [
+            balance["uiTokenAmount"]["uiAmount"]
+            for balance in postTokenBalances
+            if balance["mint"] == pool["Token1"]
+        ][0],
+    }
+
+
+def get_transaction(signature: str, retries: int = 5) -> tuple[list[dict], list[dict]]:
     """
     Fetch a transaction by its signature with retry logic.
     """
@@ -109,19 +132,22 @@ def get_transaction(signature: str, retries: int = 5) -> dict:
         total=retries,
         backoff_factor=1,
         status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=["POST"]
+        allowed_methods=["POST"],
     )
     adapter = HTTPAdapter(max_retries=retry)
     session.mount("https://", adapter)
     try:
-        
+
         response = session.post(SOLANA_RPC_URL, json=payload)
         if response.status_code == 200:
             result = response.json().get("result")
             if result:
-                print({"============TRANSACTION DETECTED====================":result})
-                pprint.pprint(result["transaction"]["message"]["instructions"])
-                return result["transaction"]["message"]["instructions"]
+                print("============TRANSACTION DETECTED====================")
+
+                return (
+                    result["meta"]["postTokenBalances"],
+                    result["transaction"]["message"]["instructions"],
+                )
         else:
             print(f"Attempt failed: {response.json().get('error')}")
     except SSLError as e:
@@ -131,7 +157,7 @@ def get_transaction(signature: str, retries: int = 5) -> dict:
     return None
 
 
-def parse_new_pool(instruction_list: dict) -> dict:
+def parse_new_pool(instruction_list: list[dict]) -> dict:
     """
     Parse a transaction instruction to detect new token pools and track volume.
     """
@@ -139,12 +165,12 @@ def parse_new_pool(instruction_list: dict) -> dict:
         for instruction in instruction_list:
             program_id = instruction["programId"]
             print(program_id, "\n")
-
+            print(instruction)
             if program_id == TOKEN_PROGRAM_ID:
                 print("============NEW POOL DETECTED====================")
-                pprint.pprint({"instruct": instruction}, "\n")
 
                 return {
+                    "Amm": instruction["accounts"][4],
                     "Token0": instruction["accounts"][8],
                     "Token1": instruction["accounts"][9],
                     # "account": instruction["parsed"]["info"].get("destination"),
