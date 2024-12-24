@@ -2,7 +2,11 @@ import requests
 import time
 
 # Solscan API endpoint for Raydium DEX
+<<<<<<< HEAD
 SOLSCAN_API_URL = ""
+=======
+SOLSCAN_API_URL = "https://api.solscan.io/amm/pools?dex=raydium"
+>>>>>>> b4968a9 (update token monitoring logic and add liquidity pool tracking)
 
 # Volume threshold
 VOLUME_THRESHOLD = 100000  # Example threshold

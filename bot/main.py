@@ -1,5 +1,9 @@
 import asyncio
+<<<<<<< HEAD
 from token_detector import run
+=======
+from token_detector import monitor_tokens, run
+>>>>>>> b4968a9 (update token monitoring logic and add liquidity pool tracking)
 from telegram_bot import send_telegram_alert
 from dotenv import load_dotenv
 
