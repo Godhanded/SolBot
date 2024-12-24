@@ -24,8 +24,8 @@ async def run()->AsyncGenerator[tuple[Any, dict], Any]:
     backoff = 1  # Initial backoff time in seconds
     max_backoff = 60  # Maximum backoff time in seconds
     while True:
-        try:
-            async with websockets.connect(SOLANA_RPC_WSS, ping_interval=10) as websocket:
+        async with websockets.connect(SOLANA_RPC_WSS) as websocket:
+            try:
                     # Send subscription request
                     await websocket.send(
                         json.dumps(
@@ -79,14 +79,15 @@ async def run()->AsyncGenerator[tuple[Any, dict], Any]:
                         #     pass
                         backoff = 1
 
-        except websockets.ConnectionClosed as e:
-            print(f"WebSocket connection closed: {e}")
-            await asyncio.sleep(backoff)
-            backoff = min(backoff * 2, max_backoff)  # Exponential backoff
-        except Exception as e:
-            print(f"An error occurredR: {e}")
-            await asyncio.sleep(backoff)
-            backoff = min(backoff * 2, max_backoff)  # Exponential backoff
+            except websockets.ConnectionClosed as e:
+                print(f"WebSocket connection closed: {e}")
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, max_backoff)  # Exponential backoff
+                continue
+            except Exception as e:
+                print(f"An error occurredR: {e}")
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, max_backoff)  # Exponential backoff
 
 
 def get_transaction(signature: str, retries: int = 5) -> dict:
