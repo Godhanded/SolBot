@@ -74,16 +74,11 @@ async def run() -> AsyncGenerator[tuple[Any, dict], Any]:
                             volumes = parse_amounts(postTokenBalances, pool)
 
                             yield signature, pool, volumes
-                            save_token_data({signature: {**pool, **volumes}})
+                            pool_store[signature] = {**pool, **volumes}
+                            save_token_data(pool_store)
                         else:
-
                             pass
-
-                    # else:
-                    #     print("Error in response: ", response_dict['params']['result']['value']['err'])
-                    #     pass
                     backoff = 1
-
             except websockets.ConnectionClosed as e:
                 print(f"WebSocket connection closed: {e}")
                 await asyncio.sleep(backoff)
