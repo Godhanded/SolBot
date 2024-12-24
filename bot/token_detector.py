@@ -1,10 +1,7 @@
 import asyncio
 import json
-import pprint
-from time import sleep
 from typing import Any, AsyncGenerator
 import requests
-import ssl
 from requests.exceptions import SSLError
 from urllib3 import Retry
 import websockets
@@ -44,7 +41,6 @@ async def run() -> AsyncGenerator[tuple[Any, dict], Any]:
                 )
 
                 first_resp = await websocket.recv()
-                print(first_resp)
                 response_dict = json.loads(first_resp)
                 if "result" in response_dict:
                     print(
@@ -160,7 +156,6 @@ def parse_new_pool(instruction_list: list[dict]) -> dict:
         for instruction in instruction_list:
             program_id = instruction["programId"]
             print(program_id, "\n")
-            print(instruction)
             if program_id == TOKEN_PROGRAM_ID:
                 print("============NEW POOL DETECTED====================")
 
