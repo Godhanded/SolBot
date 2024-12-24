@@ -1,95 +1,79 @@
+import json
 import pprint
 from time import sleep
 import requests
-import asyncio
+import websockets
 from decimal import Decimal
 from storage import save_token_data, load_token_data
-from config import SOLANA_RPC_URL
+from config import SOLANA_RPC_URL, SOLANA_RPC_WSS
 
 # SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com"
-TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+TOKEN_PROGRAM_ID = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"
 
 THRESHOLD_VOLUME = Decimal(0)  # Example threshold for volume
 THRESHOLD_MARKET_CAP = Decimal(0)  # Example threshold for market cap
 
 
-async def monitor_tokens():
-    """
-    Continuously monitor tokens for market cap and volume thresholds.
-    Yields token data for alerts.
-    """
-    tracked_tokens = load_token_data()
+async def run():
+    async with websockets.connect(SOLANA_RPC_WSS) as websocket:
+        try:
+            # Send subscription request
+            await websocket.send(
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "logsSubscribe",
+                        "params": [
+                            {"mentions": [TOKEN_PROGRAM_ID]},
+                            {"commitment": "confirmed"},
+                        ],
+                    }
+                )
+            )
 
-    while True:
-        # Fetch recent signatures for SPL Token Program
-        signatures = get_recent_signatures()
-        print({"sigs":signatures})
+            first_resp = await websocket.recv()
+            response_dict = json.loads(first_resp)
+            if "result" in response_dict:
+                print(
+                    "Subscription successful. Subscription ID: ",
+                    response_dict["result"],
+                )
 
-        for signature in signatures:
-            await asyncio.sleep(6)
-            transaction = get_transaction(signature)
+            # Continuously read from the WebSocket
+            async for response in websocket:
+                response_dict = json.loads(response)
+                pool_store = load_token_data()
 
-            if transaction:
-                token_data = parse_new_token(transaction)
-                print({"dat":token_data},"\n")
+                # if response_dict['params']['result']['value']['err'] == None:
+                signature = response_dict["params"]["result"]["value"]["signature"]
 
-                if token_data:
-                    mint = token_data['mint']
+                if signature not in pool_store:
 
-                    # Update market cap/volume for tokens
-                    if mint not in tracked_tokens:
-                        tracked_tokens[mint] = {
-                            "mint": token_data["mint"],
-                            "account": token_data["account"],
-                            "source": token_data["source"],
-                            "volume": Decimal(0),
-                        }
+                    log_messages_set = set(
+                        response_dict["params"]["result"]["value"]["logs"]
+                    )
 
-                    tracked_tokens[mint]["volume"] = str(Decimal(tracked_tokens[mint]["volume"])+ Decimal(token_data["volume"]))
-                    tracked_tokens[mint]["market_cap"] = str(calculate_market_cap(
-                        token_data
-                    ))
+                    search = "initialize2"
+                    if any(search in message for message in log_messages_set):
+                        print(f"True, https://solscan.io/tx/{signature}")
+                        pool = parse_new_pool(get_transaction(signature))
+                        save_token_data({signature: pool})
+                        yield signature, pool
+                    else:
 
-                    # Check if thresholds are exceeded
-                    if (
-                        Decimal(tracked_tokens[mint]["volume"]) >= THRESHOLD_VOLUME
-                        and Decimal(tracked_tokens[mint]["market_cap"])
-                        >= THRESHOLD_MARKET_CAP
-                    ):
-                        save_token_data(tracked_tokens)  # Save updated stats
-                        yield token_data, tracked_tokens[mint]
+                        pass
 
-        await asyncio.sleep(30)  # Delay between fetches
-
-def get_recent_signatures_from_after_current_date(date):
-    """
-    Fetch recent transaction signatures for SPL Token Program.
-    """
-    payload = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "getSignaturesForAddress",
-        "params": [TOKEN_PROGRAM_ID, {"limit": 50, "before": date}],
-    }
-    response = requests.post(SOLANA_RPC_URL, json=payload)
-    print(response.json().get("result", []),"\n")
-    return [sig["signature"] for sig in response.json().get("result", [])]
-
-def get_recent_signatures(limit=50):
-    """
-    Fetch recent transaction signatures for SPL Token Program starting from the last checked block height.
-    """
-    payload = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "getSignaturesForAddress",
-        "params": [TOKEN_PROGRAM_ID, {"limit": limit}],
-    }
-    response = requests.post(SOLANA_RPC_URL, json=payload)
-    return [sig["signature"] for sig in response.json().get("result", [])]
+                # else:
+                #     print("Error in response: ", response_dict['params']['result']['value']['err'])
+                #     pass
+        except websockets.ConnectionClosed as e:
+            print(f"WebSocket connection closed: {e}")
+        except Exception as e:
+            print(f"An error occurred: {e}")
 
 
-def get_transaction(signature, retries=5):
+def get_transaction(signature: str, retries: int = 5) -> dict:
     """
     Fetch a transaction by its signature with retry logic.
     """
@@ -97,63 +81,69 @@ def get_transaction(signature, retries=5):
         "jsonrpc": "2.0",
         "id": 1,
         "method": "getTransaction",
-        "params": [signature, {"encoding": "jsonParsed","maxSupportedTransactionVersion": 0}],
+        "params": [
+            signature,
+            {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0},
+        ],
     }
     for attempt in range(retries):
         response = requests.post(SOLANA_RPC_URL, json=payload)
         if response.status_code == 200:
             result = response.json().get("result")
             if result:
-                pprint.pprint(result)
-                return result
+                pprint.pprint(result["transaction"]["message"]["instructions"])
+                return result["transaction"]["message"]["instructions"]
         else:
             print(f"Attempt {attempt + 1} failed: {response.json().get('error')}")
-            sleep(2 ** attempt)  # Exponential backoff
+            sleep(2**attempt)  # Exponential backoff
     return None
 
 
-
-def parse_new_token(transaction):
+def parse_new_pool(instruction_list: dict) -> dict:
     """
-    Parse a transaction to detect new token mints and track volume.
+    Parse a transaction instruction to detect new token pools and track volume.
     """
     try:
-        for instruction in transaction["transaction"]["message"]["instructions"]:
+        for instruction in instruction_list:
             program_id = instruction["programId"]
-            print(program_id,"\n")
+            print(program_id, "\n")
 
             if program_id == TOKEN_PROGRAM_ID:
-                if "mint" in instruction["parsed"]["info"]:
-                    return {
-                        "mint": instruction["parsed"]["info"]["mint"],
-                        "account": instruction["parsed"]["info"].get("destination"),
-                        "source": instruction["parsed"]["info"]["source"],
-                        "volume": Decimal(instruction["parsed"]["info"]["tokenAmount"].get("uiAmountString")),
-                    }
+                print("============NEW POOL DETECTED====================")
+                pprint.pprint({"instruct": instruction}, "\n")
+
+                return {
+                    "Token0": instruction["accounts"][8],
+                    "Token1": instruction["accounts"][9],
+                    # "account": instruction["parsed"]["info"].get("destination"),
+                    # "source": instruction["parsed"]["info"]["source"],
+                    # "volume": Decimal(instruction["parsed"]["info"]["tokenAmount"].get("uiAmountString")),
+                }
     except KeyError:
+        print("KeyError: Instruction not in expected format")
         return None
-    return None
 
-def calculate_market_cap(token_data):
-    """
-    Calculate market cap based on circulating supply and token price.
-    """
-    # Fetch circulating supply from Solana token metadata
-    response = requests.get(
-        f"https://api.mainnet-beta.solana.com/token/{token_data['mint']}"
-    )
-    pprint.pprint(response.json(),"\n")
-    circulating_supply = Decimal(response.json()["result"].get("supply"))
-    print(circulating_supply,"\n")
 
-    # Fetch token price from a price oracle
-    response = requests.get(
-        f"https://api.mainnet-beta.solana.com/token/{token_data['mint']}/price"
-    )
-    price_per_token = Decimal(response.json()["result"].get("price"))
-    print(price_per_token,"\n")
+# def calculate_market_cap(token_data):
+#     """
+#     Calculate market cap based on circulating supply and token price.
+#     """
+#     # Fetch circulating supply from Solana token metadata
+#     response = requests.get(
+#         f"https://api.mainnet-beta.solana.com/token/{token_data['mint']}"
+#     )
+#     pprint.pprint(response.json(),"\n")
+#     circulating_supply = Decimal(response.json()["result"].get("supply"))
+#     print(circulating_supply,"\n")
 
-    return circulating_supply * price_per_token
+#     # Fetch token price from a price oracle
+#     response = requests.get(
+#         f"https://api.mainnet-beta.solana.com/token/{token_data['mint']}/price"
+#     )
+#     price_per_token = Decimal(response.json()["result"].get("price"))
+#     print(price_per_token,"\n")
+
+#     return circulating_supply * price_per_token
 
 # def calculate_market_cap(token_data):
 #     """
@@ -163,3 +153,98 @@ def calculate_market_cap(token_data):
 #     circulating_supply = Decimal(10_000_000)  # Replace with actual supply
 #     price_per_token = Decimal(0.05)  # Replace with actual price
 #     return circulating_supply * price_per_token
+
+
+# def check_newly_listed_token_on_raydium():
+#     """
+#     Check Raydium DEX for newly listed SOL-token pairs and return the token address and deposited SOL amount.
+#     """
+#     RAYDIUM_API_URL = "https://api.raydium.io/pairs"
+
+#     response = requests.get(RAYDIUM_API_URL)
+#     pairs = response.json().get("data", [])
+
+#     for pair in pairs:
+#         if pair["baseToken"]["symbol"] == "SOL":
+#             token_address = pair["quoteToken"]["mint"]
+#             deposited_sol = Decimal(pair["baseToken"]["amount"])
+#             return token_address, deposited_sol
+
+#     return None, None
+
+
+# async def monitor_tokens():
+#     """
+#     Continuously monitor tokens for market cap and volume thresholds.
+#     Yields token data for alerts.
+#     """
+#     tracked_tokens = load_token_data()
+
+#     while True:
+#         # Fetch recent signatures for SPL Token Program
+#         signatures = get_recent_signatures()
+#         print({"sigs":signatures})
+
+#         for signature in signatures:
+#             await asyncio.sleep(6)
+#             transaction = get_transaction(signature)
+
+#             if transaction:
+#                 token_data = parse_new_token(transaction)
+#                 print({"dat":token_data},"\n")
+
+#                 if token_data:
+#                     mint = token_data['mint']
+
+#                     # Update market cap/volume for tokens
+#                     if mint not in tracked_tokens:
+#                         tracked_tokens[mint] = {
+#                             "mint": token_data["mint"],
+#                             "account": token_data["account"],
+#                             "source": token_data["source"],
+#                             "volume": Decimal(0),
+#                         }
+
+#                     tracked_tokens[mint]["volume"] = str(Decimal(tracked_tokens[mint]["volume"])+ Decimal(token_data["volume"]))
+#                     tracked_tokens[mint]["market_cap"] = str(calculate_market_cap(
+#                         token_data
+#                     ))
+
+#                     # Check if thresholds are exceeded
+#                     if (
+#                         Decimal(tracked_tokens[mint]["volume"]) >= THRESHOLD_VOLUME
+#                         and Decimal(tracked_tokens[mint]["market_cap"])
+#                         >= THRESHOLD_MARKET_CAP
+#                     ):
+#                         save_token_data(tracked_tokens)  # Save updated stats
+#                         yield token_data, tracked_tokens[mint]
+
+#         await asyncio.sleep(30)  # Delay between fetches
+
+# def get_recent_signatures_from_after_current_date(date):
+#     """
+#     Fetch recent transaction signatures for SPL Token Program.
+#     """
+#     payload = {
+#         "jsonrpc": "2.0",
+#         "id": 1,
+#         "method": "getSignaturesForAddress",
+#         "params": [TOKEN_PROGRAM_ID, {"limit": 50, "before": date}],
+#     }
+#     response = requests.post(SOLANA_RPC_URL, json=payload)
+#     print(response.json().get("result", []),"\n")
+#     return [sig["signature"] for sig in response.json().get("result", [])]
+
+
+# def get_recent_signatures(limit=50):
+#  """
+# Fetch recent transaction signatures for SPL Token Program starting from the last checked block height.
+# """
+# payload = {
+#     "jsonrpc": "2.0",
+#     "id": 1,
+#     "method": "getSignaturesForAddress",
+#     "params": [TOKEN_PROGRAM_ID, {"limit": limit}],
+# }
+# response = requests.post(SOLANA_RPC_URL, json=payload)
+# return [sig["signature"] for sig in response.json().get("result", [])]
