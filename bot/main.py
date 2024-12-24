@@ -1,7 +1,9 @@
 import asyncio
+import traceback
 from token_detector import run
 from telegram_bot import send_telegram_alert
 from dotenv import load_dotenv
+import psutil
 
 load_dotenv()  # Load environment variables from .env
 
@@ -21,10 +23,15 @@ async def run_bot():
             )
             print("Alerting....")
             await send_telegram_alert(alert_message)
+            print(f"Memory usage: {psutil.Process().memory_info().rss / 1024 ** 2} MB")
+            print(f"CPU usage: {psutil.cpu_percent(interval=1)}%")
     except asyncio.CancelledError:
         print("Bot is shutting down gracefully...")
     except Exception as e:
         print(f"An error occurred: {e}")
+        print(traceback.format_exc())
+        print(f"Memory usage: {psutil.Process().memory_info().rss / 1024 ** 2} MB")
+        print(f"CPU usage: {psutil.cpu_percent(interval=1)}%")
 
 
 async def main():
@@ -38,5 +45,5 @@ async def main():
         print(f"An error occurred in main: {e}")
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+
+asyncio.run(main())

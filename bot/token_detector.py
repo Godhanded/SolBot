@@ -1,3 +1,4 @@
+import asyncio
 import json
 import pprint
 from time import sleep
@@ -15,7 +16,7 @@ THRESHOLD_MARKET_CAP = Decimal(0)  # Example threshold for market cap
 
 
 async def run():
-    async with websockets.connect(SOLANA_RPC_WSS) as websocket:
+    async with websockets.connect(SOLANA_RPC_WSS, ping_interval=None) as websocket:
         try:
             # Send subscription request
             await websocket.send(
@@ -69,8 +70,10 @@ async def run():
                 #     pass
         except websockets.ConnectionClosed as e:
             print(f"WebSocket connection closed: {e}")
+            await asyncio.sleep(5)
         except Exception as e:
             print(f"An error occurred: {e}")
+            await asyncio.sleep(5)
 
 
 def get_transaction(signature: str, retries: int = 5) -> dict:
