@@ -3,8 +3,12 @@ import json
 import pprint
 from time import sleep
 import requests
+import ssl
+from requests.exceptions import SSLError
+from urllib3 import Retry
 import websockets
 from decimal import Decimal
+from requests.adapters import HTTPAdapter
 from storage import save_token_data, load_token_data
 from config import SOLANA_RPC_URL, SOLANA_RPC_WSS
 
@@ -14,66 +18,73 @@ TOKEN_PROGRAM_ID = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"
 THRESHOLD_VOLUME = Decimal(0)  # Example threshold for volume
 THRESHOLD_MARKET_CAP = Decimal(0)  # Example threshold for market cap
 
-
+            
 async def run():
-    async with websockets.connect(SOLANA_RPC_WSS, ping_interval=None) as websocket:
+    backoff = 1  # Initial backoff time in seconds
+    max_backoff = 60  # Maximum backoff time in seconds
+    while True:
         try:
-            # Send subscription request
-            await websocket.send(
-                json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": 1,
-                        "method": "logsSubscribe",
-                        "params": [
-                            {"mentions": [TOKEN_PROGRAM_ID]},
-                            {"commitment": "confirmed"},
-                        ],
-                    }
-                )
-            )
-
-            first_resp = await websocket.recv()
-            response_dict = json.loads(first_resp)
-            if "result" in response_dict:
-                print(
-                    "Subscription successful. Subscription ID: ",
-                    response_dict["result"],
-                )
-
-            # Continuously read from the WebSocket
-            async for response in websocket:
-                response_dict = json.loads(response)
-                pool_store = load_token_data()
-
-                # if response_dict['params']['result']['value']['err'] == None:
-                signature = response_dict["params"]["result"]["value"]["signature"]
-
-                if signature not in pool_store:
-
-                    log_messages_set = set(
-                        response_dict["params"]["result"]["value"]["logs"]
+            async with websockets.connect(SOLANA_RPC_WSS, ping_interval=20) as websocket:
+                    # Send subscription request
+                    await websocket.send(
+                        json.dumps(
+                            {
+                                "jsonrpc": "2.0",
+                                "id": 1,
+                                "method": "logsSubscribe",
+                                "params": [
+                                    {"mentions": [TOKEN_PROGRAM_ID]},
+                                    {"commitment": "confirmed"},
+                                ],
+                            }
+                        )
                     )
 
-                    search = "initialize2"
-                    if any(search in message for message in log_messages_set):
-                        print(f"True, https://solscan.io/tx/{signature}")
-                        pool = parse_new_pool(get_transaction(signature))
-                        save_token_data({signature: pool})
-                        yield signature, pool
-                    else:
+                    first_resp = await websocket.recv()
+                    response_dict = json.loads(first_resp)
+                    if "result" in response_dict:
+                        print(
+                            "Subscription successful. Subscription ID: ",
+                            response_dict["result"],
+                        )
 
-                        pass
+                    # Continuously read from the WebSocket
+                    async for response in websocket:
+                        response_dict = json.loads(response)
+                        pool_store = load_token_data()
 
-                # else:
-                #     print("Error in response: ", response_dict['params']['result']['value']['err'])
-                #     pass
+                        # if response_dict['params']['result']['value']['err'] == None:
+                        signature = response_dict["params"]["result"]["value"]["signature"]
+
+                        if signature not in pool_store:
+
+                            log_messages_set = set(
+                                response_dict["params"]["result"]["value"]["logs"]
+                            )
+
+                            search = "initialize2"
+                            if any(search in message for message in log_messages_set):
+                                print(f"True, https://solscan.io/tx/{signature}")
+                                pool = parse_new_pool(get_transaction(signature))
+                                save_token_data({signature: pool})
+                                yield signature, pool
+                            else:
+
+                                pass
+
+                        # else:
+                        #     print("Error in response: ", response_dict['params']['result']['value']['err'])
+                        #     pass
+                        backoff = 1
+
         except websockets.ConnectionClosed as e:
             print(f"WebSocket connection closed: {e}")
-            await asyncio.sleep(5)
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, max_backoff)  # Exponential backoff
         except Exception as e:
             print(f"An error occurred: {e}")
-            await asyncio.sleep(5)
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, max_backoff)  # Exponential backoff
 
 
 def get_transaction(signature: str, retries: int = 5) -> dict:
@@ -89,16 +100,29 @@ def get_transaction(signature: str, retries: int = 5) -> dict:
             {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0},
         ],
     }
-    for attempt in range(retries):
-        response = requests.post(SOLANA_RPC_URL, json=payload)
+    session = requests.Session()
+    retry = Retry(
+        total=retries,
+        backoff_factor=1,
+        status_forcelist=[429, 500, 502, 503, 504],
+        method_whitelist=["POST"]
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("https://", adapter)
+    try:
+        
+        response = session.post(SOLANA_RPC_URL, json=payload)
         if response.status_code == 200:
             result = response.json().get("result")
             if result:
                 pprint.pprint(result["transaction"]["message"]["instructions"])
                 return result["transaction"]["message"]["instructions"]
         else:
-            print(f"Attempt {attempt + 1} failed: {response.json().get('error')}")
-            sleep(2**attempt)  # Exponential backoff
+            print(f"Attempt failed: {response.json().get('error')}")
+    except SSLError as e:
+        print(f"SSL error occurred: {e}")
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred: {e}")
     return None
 
 
