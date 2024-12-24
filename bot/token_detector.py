@@ -2,6 +2,7 @@ import asyncio
 import json
 import pprint
 from time import sleep
+from typing import Any, AsyncGenerator
 import requests
 import ssl
 from requests.exceptions import SSLError
@@ -19,12 +20,12 @@ THRESHOLD_VOLUME = Decimal(0)  # Example threshold for volume
 THRESHOLD_MARKET_CAP = Decimal(0)  # Example threshold for market cap
 
             
-async def run():
+async def run()->AsyncGenerator[tuple[Any, dict], Any]:
     backoff = 1  # Initial backoff time in seconds
     max_backoff = 60  # Maximum backoff time in seconds
     while True:
         try:
-            async with websockets.connect(SOLANA_RPC_WSS, ping_interval=20) as websocket:
+            async with websockets.connect(SOLANA_RPC_WSS, ping_interval=10) as websocket:
                     # Send subscription request
                     await websocket.send(
                         json.dumps(
@@ -41,6 +42,7 @@ async def run():
                     )
 
                     first_resp = await websocket.recv()
+                    print(first_resp)
                     response_dict = json.loads(first_resp)
                     if "result" in response_dict:
                         print(
@@ -66,8 +68,8 @@ async def run():
                             if any(search in message for message in log_messages_set):
                                 print(f"True, https://solscan.io/tx/{signature}")
                                 pool = parse_new_pool(get_transaction(signature))
-                                save_token_data({signature: pool})
                                 yield signature, pool
+                                save_token_data({signature: pool})
                             else:
 
                                 pass
@@ -82,7 +84,7 @@ async def run():
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, max_backoff)  # Exponential backoff
         except Exception as e:
-            print(f"An error occurred: {e}")
+            print(f"An error occurredR: {e}")
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, max_backoff)  # Exponential backoff
 
@@ -91,6 +93,7 @@ def get_transaction(signature: str, retries: int = 5) -> dict:
     """
     Fetch a transaction by its signature with retry logic.
     """
+    print(signature)
     payload = {
         "jsonrpc": "2.0",
         "id": 1,
@@ -105,7 +108,7 @@ def get_transaction(signature: str, retries: int = 5) -> dict:
         total=retries,
         backoff_factor=1,
         status_forcelist=[429, 500, 502, 503, 504],
-        method_whitelist=["POST"]
+        allowed_methods=["POST"]
     )
     adapter = HTTPAdapter(max_retries=retry)
     session.mount("https://", adapter)
@@ -115,6 +118,7 @@ def get_transaction(signature: str, retries: int = 5) -> dict:
         if response.status_code == 200:
             result = response.json().get("result")
             if result:
+                print({"============TRANSACTION DETECTED====================":result})
                 pprint.pprint(result["transaction"]["message"]["instructions"])
                 return result["transaction"]["message"]["instructions"]
         else:
@@ -122,7 +126,7 @@ def get_transaction(signature: str, retries: int = 5) -> dict:
     except SSLError as e:
         print(f"SSL error occurred: {e}")
     except requests.exceptions.RequestException as e:
-        print(f"An error occurred: {e}")
+        print(f"An error occurred T: {e}")
     return None
 
 

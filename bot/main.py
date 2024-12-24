@@ -8,7 +8,7 @@ import psutil
 load_dotenv()  # Load environment variables from .env
 
 
-async def run_bot():
+async def run_bot()->None:
     print("Starting Solana Bot...")
     try:
         async for signature, pool in run():
@@ -34,7 +34,7 @@ async def run_bot():
         print(f"CPU usage: {psutil.cpu_percent(interval=1)}%")
 
 
-async def main():
+async def main()->None:
     task = asyncio.create_task(run_bot())
     try:
         await task
