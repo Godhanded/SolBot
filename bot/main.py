@@ -1,5 +1,5 @@
 import asyncio
-from token_detector import monitor_tokens, run
+from token_detector import run
 from telegram_bot import send_telegram_alert
 from dotenv import load_dotenv
 
