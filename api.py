@@ -18,7 +18,7 @@ def health():
 @app.route("/", methods=["POST"])
 def process_pool():
     key = request.headers.get("X-API-KEY")
-    if key != "my_secret_key":
+    if key != app.secret_key:
         return jsonify({"status": "unauthorized"}, 401)
     pool_data: dict[str, Any] = request.get_json()
     tracked_tokens = load_token_data()
