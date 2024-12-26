@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, cast
 import requests
 from requests.exceptions import SSLError
 from urllib3 import Retry
@@ -17,12 +17,12 @@ THRESHOLD_VOLUME = Decimal(0)  # Example threshold for volume
 THRESHOLD_MARKET_CAP = Decimal(0)  # Example threshold for market cap
 
 
-async def run() -> AsyncGenerator[tuple[Any, dict], Any]:
+async def run() -> AsyncGenerator[tuple[Any, dict, dict], Any]:
     backoff = 1  # Initial backoff time in seconds
     max_backoff = 60  # Maximum backoff time in seconds
     while True:
         async with websockets.connect(
-            SOLANA_RPC_WSS, ping_timeout=None, ping_interval=None
+            cast(str, SOLANA_RPC_WSS), ping_timeout=None, ping_interval=None
         ) as websocket:
             try:
                 # Send subscription request
@@ -125,7 +125,7 @@ def get_transaction(signature: str, retries: int = 5) -> tuple[list[dict], list[
         status_forcelist=[429, 500, 502, 503, 504],
         allowed_methods=["POST"],
     )
-    adapter = HTTPAdapter(max_retries=retry)
+    adapter = HTTPAdapter(max_retries=retry)  # type: ignore
     session.mount("https://", adapter)
     try:
 
@@ -145,10 +145,10 @@ def get_transaction(signature: str, retries: int = 5) -> tuple[list[dict], list[
         print(f"SSL error occurred: {e}")
     except requests.exceptions.RequestException as e:
         print(f"An error occurred T: {e}")
-    return None
+    return None  # type: ignore
 
 
-def parse_new_pool(instruction_list: list[dict]) -> dict:
+def parse_new_pool(instruction_list: list[dict]) -> dict:  # type: ignore
     """
     Parse a transaction instruction to detect new token pools and track volume.
     """
@@ -169,7 +169,7 @@ def parse_new_pool(instruction_list: list[dict]) -> dict:
                 }
     except KeyError:
         print("KeyError: Instruction not in expected format")
-        return None
+        return None  # type: ignore
 
 
 # def calculate_market_cap(token_data):

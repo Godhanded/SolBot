@@ -9,6 +9,7 @@ load_dotenv()  # Load environment variables from .env
 
 SOLANA_MINT_ADDRESS = "So11111111111111111111111111111111111111112"
 
+
 async def run_bot() -> None:
     print("Starting Solana Bot...")
     try:
@@ -37,6 +38,7 @@ async def run_bot() -> None:
         print(f"Memory usage: {psutil.Process().memory_info().rss / 1024 ** 2} MB")
         print(f"CPU usage: {psutil.cpu_percent(interval=1)}%")
 
+
 async def main() -> None:
     task = asyncio.create_task(run_bot())
     try:
@@ -49,5 +51,6 @@ async def main() -> None:
             print("Main task cancelled successfully.")
     except Exception as e:
         print(f"An error occurred in main: {e}")
+
 
 asyncio.run(main())
