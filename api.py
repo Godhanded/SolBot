@@ -37,3 +37,8 @@ def process_pool():
     send_server_telegram_alert(pool_data["signature"], new_pool)
 
     return jsonify({"status": "success"}),200
+
+
+
+if __name__ == "__main__":
+    app.run(debug=False)
