@@ -12,7 +12,7 @@ app.secret_key = os.environ.get("SECRET_KEY")
 
 @app.route("/")
 def health():
-    return jsonify({"status": "healthy"}, 200)
+    return jsonify({"status": "healthy"}),200
 
 
 @app.route("/", methods=["POST"])
@@ -36,4 +36,4 @@ def process_pool():
     save_token_data(tracked_tokens)
     send_server_telegram_alert(pool_data["signature"], new_pool)
 
-    return jsonify({"status": "success"}, 200)
+    return jsonify({"status": "success"}),200
