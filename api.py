@@ -15,7 +15,7 @@ def health():
     return jsonify({"status": "healthy"}, 200)
 
 
-@app.route("/", method=["POST"])
+@app.route("/", methods=["POST"])
 def process_pool():
     key = request.headers.get("X-API-KEY")
     if key != "my_secret_key":
