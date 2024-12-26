@@ -17,26 +17,26 @@ def health():
 
 @app.route("/", methods=["POST"])
 def process_pool():
-    # print([header for header in request.headers])
-    key = request.headers.get("X-API-KEY")
+    key = request.headers.get("Authorization")
     if key != app.secret_key:
+        print("fail")
         return jsonify({"status": "unauthorized"}, 401)
-    pool_data: dict[str, Any] = request.get_json()
+    pool_data: list[dict[str, Any]] = request.get_json()
     tracked_tokens = load_token_data()
-    token_details = pool_data["tokenTransfers"]
+    token_details = pool_data[0]["tokenTransfers"]
 
     new_pool = {
-        "exchange":pool_data["source"],
+        "exchange":pool_data[0]["source"],
         "token0": token_details[0]["mint"],
         "token0_volume": token_details[0]["tokenAmount"],
         "token1": token_details[1]["mint"],
         "token1_volume": token_details[1]["tokenAmount"],
-        "time_stamp": pool_data["timestamp"],
+        "time_stamp": pool_data[0]["timestamp"],
     }
-    tracked_tokens[pool_data["signature"]] = new_pool
+    tracked_tokens[pool_data[0]["signature"]] = new_pool
     # if new_pool["token0_volume"] > 1000 or new_pool["token1_volume"] > 1000:
     save_token_data(tracked_tokens)
-    send_server_telegram_alert(pool_data["signature"], new_pool)
+    send_server_telegram_alert(pool_data[0]["signature"], new_pool)
 
     return jsonify({"status": "success"}),200
 
