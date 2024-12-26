@@ -36,8 +36,8 @@ def process_pool():
     }
     if new_pool["token0_volume"] > 200 and new_pool["token1_volume"] > 200:
         tracked_tokens[pool_data[0]["signature"]] = {**new_pool,"time_stamp":datetime.fromtimestamp(pool_data[0]["timestamp"])}
-        save_token_data(tracked_tokens)
         send_server_telegram_alert(pool_data[0]["signature"], new_pool)
+        save_token_data(tracked_tokens)
 
     return jsonify({"status": "success"}),200
 
