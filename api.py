@@ -17,6 +17,7 @@ def health():
 
 @app.route("/", methods=["POST"])
 def process_pool():
+    # print([header for header in request.headers])
     key = request.headers.get("X-API-KEY")
     if key != app.secret_key:
         return jsonify({"status": "unauthorized"}, 401)
@@ -25,6 +26,7 @@ def process_pool():
     token_details = pool_data["tokenTransfers"]
 
     new_pool = {
+        "exchange":pool_data["source"],
         "token0": token_details[0]["mint"],
         "token0_volume": token_details[0]["tokenAmount"],
         "token1": token_details[1]["mint"],
