@@ -34,7 +34,7 @@ def process_pool():
         "token1_volume": token_details[1]["tokenAmount"],
         "time_stamp": pool_data[0]["timestamp"],
     }
-    if new_pool["token0_volume"] > 80 and (80 <= new_pool["token1_volume"] <= 90 ):
+    if new_pool["token0_volume"] > 80 and (2 <= new_pool["token1_volume"] <= 11 ):
         send_server_telegram_alert(pool_data[0]["signature"], new_pool)
         tracked_tokens[pool_data[0]["signature"]] = {**new_pool,"time_stamp":str(datetime.fromtimestamp(pool_data[0]["timestamp"]))}
         save_token_data(tracked_tokens)
