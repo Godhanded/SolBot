@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, cast
 import telegram
 import requests
-from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from bot.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
 SOLANA_MINT_ADDRESS = "So11111111111111111111111111111111111111112"
 

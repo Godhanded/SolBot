@@ -1,8 +1,8 @@
 import asyncio
 import traceback
-from token_detector import run
-from telegram_bot import send_telegram_alert
-from token_quality import TokenQualityAnalyzer, quick_filter
+from bot.token_detector import run
+from bot.telegram_bot import send_telegram_alert
+from bot.token_quality import TokenQualityAnalyzer, quick_filter
 from dotenv import load_dotenv
 import psutil
 

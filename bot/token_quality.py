@@ -5,7 +5,7 @@ Filters out scams, rug pulls, and low-quality tokens
 import requests
 from decimal import Decimal
 from typing import Optional, Dict, Any
-from config import (
+from bot.config import (
     SOLANA_RPC_URL,
     MIN_LIQUIDITY_SOL,
     MAX_LIQUIDITY_SOL,

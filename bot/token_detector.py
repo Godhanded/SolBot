@@ -7,8 +7,8 @@ from urllib3 import Retry
 import websockets
 from decimal import Decimal
 from requests.adapters import HTTPAdapter
-from storage import save_token_data, load_token_data
-from config import SOLANA_RPC_URL, SOLANA_RPC_WSS
+from bot.storage import save_token_data, load_token_data
+from bot.config import SOLANA_RPC_URL, SOLANA_RPC_WSS
 
 # SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com"
 TOKEN_PROGRAM_ID = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"
