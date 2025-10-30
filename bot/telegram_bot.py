@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, cast
 import telegram
 import requests
-from bot.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
 SOLANA_MINT_ADDRESS = "So11111111111111111111111111111111111111112"
 
@@ -37,21 +37,25 @@ def send_telegram_alert(message: str) -> None:
         print(f"Failed to send Telegram message: {response.content}")
 
 
-def send_server_telegram_alert(signature: str, new_pool: dict[str, Any]) -> None:
+def send_server_telegram_alert(signature: str, new_pool: dict[str, Any], custom_message: str | None = None) -> None:
     """
     Send a notification to Telegram.
+    If custom_message is provided, use it instead of the default message.
     """
-    message = (
-        f"🚨 *Token Alert!*\n\n"
-        f"📈 *Exchange:* `{new_pool['exchange']}` \n\n"
-        f"🪙 *Token0:* [{new_pool['token0'] if new_pool['token0']!= SOLANA_MINT_ADDRESS else 'WSOL'}](https://dexscreener.com/solana/{new_pool['token0']}) \n"
-        f"💸 *Token0Volume:* {new_pool['token0_volume']}\n\n"
-        f"🪙 *Token1:* [{new_pool['token1'] if new_pool['token1']!= SOLANA_MINT_ADDRESS else 'WSOL'}](https://dexscreener.com/solana/{new_pool['token1']}) \n"
-        f"💸 *Token1Volume:* {new_pool['token1_volume']}\n\n"
-        f"⏳ *List Time:* {datetime.fromtimestamp(float(new_pool['time_stamp']))}(UTC)\n\n"
-        f"🧾 *Signature:* https://solscan.io/tx/{signature}\n\n"
-        f"💱 *Swap:* https://raydium.io/swap/?inputMint={new_pool['token0']}&outputMint={new_pool['token1']}\n"
-    )
+    if custom_message:
+        message = custom_message
+    else:
+        message = (
+            f"🚨 *Token Alert!*\n\n"
+            f"📈 *Exchange:* `{new_pool['exchange']}` \n\n"
+            f"🪙 *Token0:* [{new_pool['token0'] if new_pool['token0']!= SOLANA_MINT_ADDRESS else 'WSOL'}](https://dexscreener.com/solana/{new_pool['token0']}) \n"
+            f"💸 *Token0Volume:* {new_pool['token0_volume']}\n\n"
+            f"🪙 *Token1:* [{new_pool['token1'] if new_pool['token1']!= SOLANA_MINT_ADDRESS else 'WSOL'}](https://dexscreener.com/solana/{new_pool['token1']}) \n"
+            f"💸 *Token1Volume:* {new_pool['token1_volume']}\n\n"
+            f"⏳ *List Time:* {datetime.fromtimestamp(float(new_pool['time_stamp']))}(UTC)\n\n"
+            f"🧾 *Signature:* https://solscan.io/tx/{signature}\n\n"
+            f"💱 *Swap:* https://raydium.io/swap/?inputMint={new_pool['token0']}&outputMint={new_pool['token1']}\n"
+        )
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
