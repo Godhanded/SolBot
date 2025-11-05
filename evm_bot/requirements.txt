@@ -1,0 +1,31 @@
+# EVM Bot Requirements
+# Install with: pip install -r requirements.txt
+
+# Core Web3 libraries
+web3==6.15.1
+eth-account==0.11.0
+eth-utils==3.0.0
+
+# Async HTTP client
+aiohttp==3.9.3
+aiofiles==23.2.1
+
+# Environment and configuration
+python-dotenv==1.0.1
+
+# Utilities
+requests==2.32.3
+
+# Logging and monitoring
+colorlog==6.8.2
+
+# Data handling
+python-dateutil==2.8.2
+
+# Optional but recommended
+# For better WebSocket support
+websockets==12.0
+
+# For database support (future enhancement)
+# sqlalchemy==2.0.25
+# aiosqlite==0.19.0
