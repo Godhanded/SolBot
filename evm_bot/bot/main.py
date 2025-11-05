@@ -184,7 +184,7 @@ class EVMBot:
         logger.info("="*60)
 
         # Send startup notification
-        await self.telegram.send_message(
+        await self.telegram._send_message(
             "🤖 *EVM Bot Started*\n\n"
             f"Mode: {'AUTO-TRADE' if config.AUTO_TRADE else 'SIGNAL-ONLY'}\n"
             f"Network: BSC\n"
@@ -242,7 +242,7 @@ class EVMBot:
                 sign = "+" if net_profit > 0 else ""
                 message += f"Session P/L: `{sign}{net_profit:.4f} BNB`\n"
 
-        await self.telegram.send_message(message)
+        await self.telegram._send_message(message)
 
         logger.info("✅ Bot stopped successfully")
 
@@ -284,7 +284,7 @@ class EVMBot:
                 # Check if we can open new position
                 if not self.position_manager.can_open_new_position():
                     logger.warning("Cannot trade: Max concurrent positions reached")
-                    await self.telegram.send_message(
+                    await self.telegram._send_message(
                         f"⚠️ *Max Positions Reached*\n\n"
                         f"Cannot buy `{token_address[:8]}...`\n"
                         f"Current positions: {len(self.position_manager.positions)}/{config.MAX_CONCURRENT_POSITIONS}"
