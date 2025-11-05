@@ -341,8 +341,36 @@ class TradingProfile:
         "MAX_SELL_TAX_PERCENT": 20,
     }
 
+    MOONSHOT = {
+        "MINIMUM_QUALITY_SCORE": 50,
+        "MIN_LIQUIDITY_BNB": 2,
+        "MAX_LIQUIDITY_BNB": 50,
+        "OPTIMAL_LIQUIDITY_MIN_BNB": 3,
+        "OPTIMAL_LIQUIDITY_MAX_BNB": 20,
+        "MARKET_CAP_MIN_USD": 1000,
+        "MARKET_CAP_MAX_USD": 50000,
+        "MARKET_CAP_UPPER_LIMIT_USD": 100000,
+        "STOP_LOSS_PERCENT": 50,
+        "TAKE_PROFIT_PERCENT": 300,
+        "USE_TRAILING_STOP": True,
+        "TRAILING_STOP_PERCENT": 30,
+        "MAX_HOLD_TIME_SECONDS": 86400,  # 24 hours
+        "MIN_PROFIT_PERCENT": 200,  # 2x minimum
+        "MAX_BUY_TAX_PERCENT": 15,
+        "MAX_SELL_TAX_PERCENT": 20,
+        "MAX_CONCURRENT_POSITIONS": 10,
+        "SLIPPAGE_PERCENT": 20,
+        "GAS_PRICE_MULTIPLIER": 1.5,
+        "POSITION_CHECK_INTERVAL": 15,
+        "SCORE_WEIGHT_LIQUIDITY": 30,
+        "SCORE_WEIGHT_MARKET_CAP": 30,
+        "SCORE_WEIGHT_SECURITY": 20,
+        "SCORE_WEIGHT_HOLDERS": 10,
+        "SCORE_WEIGHT_CONTRACT": 10,
+    }
+
 # Apply profile if specified
 TRADING_PROFILE = os.getenv("TRADING_PROFILE", "").upper()
-if TRADING_PROFILE in ["CONSERVATIVE", "BALANCED", "AGGRESSIVE"]:
+if TRADING_PROFILE in ["CONSERVATIVE", "BALANCED", "AGGRESSIVE", "MOONSHOT"]:
     profile = getattr(TradingProfile, TRADING_PROFILE)
     globals().update(profile)
